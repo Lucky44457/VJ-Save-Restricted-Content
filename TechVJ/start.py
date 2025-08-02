@@ -1,6 +1,6 @@
 from pyrogram import Client, filters
 from pyrogram.types import Message
-from Database.db import db  # Correct import for db.py in Database/ folder
+from database.db import db  # Correct import for db.py in Database/ folder
 
 # /start command
 @Client.on_message(filters.command("start") & filters.private)
