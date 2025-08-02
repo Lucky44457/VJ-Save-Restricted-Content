@@ -10,9 +10,10 @@ class Database:
 
     def new_user(self, id, name):
         return dict(
-            id = id,
-            name = name,
-            session = None,
+            id=id,
+            name=name,
+            session=None,
+            replace={"old": None, "new": None},  # Added replace field
         )
     
     async def add_user(self, id, name):
@@ -20,12 +21,11 @@ class Database:
         await self.col.insert_one(user)
     
     async def is_user_exist(self, id):
-        user = await self.col.find_one({'id':int(id)})
+        user = await self.col.find_one({'id': int(id)})
         return bool(user)
     
     async def total_users_count(self):
-        count = await self.col.count_documents({})
-        return count
+        return await self.col.count_documents({})
 
     async def get_all_users(self):
         return self.col.find({})
@@ -39,5 +39,24 @@ class Database:
     async def get_session(self, id):
         user = await self.col.find_one({'id': int(id)})
         return user.get('session')
+
+    # ✅ NEW: Set replace rule
+    async def set_replace(self, id, old, new):
+        await self.col.update_one(
+            {'id': int(id)},
+            {'$set': {'replace': {'old': old, 'new': new}}}
+        )
+
+    # ✅ NEW: Get replace rule
+    async def get_replace(self, id):
+        user = await self.col.find_one({'id': int(id)})
+        return user.get('replace', {"old": None, "new": None})
+
+    # ✅ NEW: Clear replace rule
+    async def clear_replace(self, id):
+        await self.col.update_one(
+            {'id': int(id)},
+            {'$set': {'replace': {'old': None, 'new': None}}}
+        )
 
 db = Database(DB_URI, DB_NAME)
