@@ -23,7 +23,7 @@ async def replace_command(client, message: Message):
         return await message.reply_text("❌ Usage:\n/replace old | new")
 
     await db.set_replace(message.from_user.id, old, new)
-    await message.reply_text(f"✅ Rule saved:\n`{old}` ➝ `{new}`", parse_mode="markdown")
+    await message.reply_text(f"✅ Rule saved:\n`{old}` ➝ `{new}`", parse_mode="Markdown")
 
 # /clearreplace command
 @Client.on_message(filters.command("clearreplace") & filters.private)
