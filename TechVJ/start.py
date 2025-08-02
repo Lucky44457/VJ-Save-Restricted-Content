@@ -1,5 +1,4 @@
 import os
-import json
 import asyncio
 import threading
 import time
@@ -8,10 +7,7 @@ from pyrogram import Client, filters
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from pyrogram.errors import UserAlreadyParticipant, InviteHashExpired, UsernameNotOccupied
 
-with open('config.json', 'r') as f:
-    DATA = json.load(f)
-
-def getenv(var): return os.environ.get(var) or DATA.get(var, None)
+from config import getenv  # ✅ Correct import for config.py style
 
 API_ID = int(getenv("ID"))
 API_HASH = getenv("HASH")
@@ -194,5 +190,7 @@ def get_message_type(msg):
     if msg.sticker: return "Sticker"
     if msg.text: return "Text"
 
-if acc: acc.start()
+if acc:
+    acc.start()
+
 bot.run()
