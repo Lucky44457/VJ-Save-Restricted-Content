@@ -1,6 +1,6 @@
 from pyrogram import Client, filters
 from pyrogram.types import Message
-from database.db import db  # Correct import for db.py in Database/ folder
+from database.db import db  # ✅ Adjusted to your folder structure
 
 # /start command
 @Client.on_message(filters.command("start") & filters.private)
@@ -23,7 +23,7 @@ async def replace_command(client, message: Message):
         return await message.reply_text("❌ Usage:\n/replace old | new")
 
     await db.set_replace(message.from_user.id, old, new)
-    await message.reply_text(f"✅ Rule saved:\n`{old}` ➝ `{new}`", parse_mode="Markdown")
+    await message.reply_text(f"✅ Rule saved:\n{old} ➝ {new}")  # 🛠️ No parse_mode
 
 # /clearreplace command
 @Client.on_message(filters.command("clearreplace") & filters.private)
