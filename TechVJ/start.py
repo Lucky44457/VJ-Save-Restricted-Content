@@ -1,24 +1,32 @@
 from pyrogram import Client, filters
 from pyrogram.types import Message
-from db import db  # Import database instance
+from Database.db import db  # Corrected import path
 
 # /start command
 @Client.on_message(filters.command("start") & filters.private)
 async def start_command(client, message: Message):
     if not await db.is_user_exist(message.from_user.id):
         await db.add_user(message.from_user.id, message.from_user.first_name)
-    await message.reply_text("👋 Welcome! Send any media and I'll save it.\n\nSet caption replace using:\n/replace old new\n\nClear it:\n/clearreplace")
+    await message.reply_text(
+        "👋 Welcome! Send any media and I'll save it.\n\n"
+        "Set caption replace using:\n/replace old new\n\n"
+        "Clear it:\n/clearreplace"
+    )
 
 # /replace command
 @Client.on_message(filters.command("replace") & filters.private)
 async def replace_command(client, message: Message):
     parts = message.text.split(" ", 2)
     if len(parts) != 3:
-        return await message.reply_text("❌ Usage:\n/replace old_text new_text", parse_mode="markdown")
+        return await message.reply_text(
+            "❌ Usage:\n/replace old_text new_text", parse_mode="markdown"
+        )
 
     old, new = parts[1], parts[2]
     await db.set_replace(message.from_user.id, old, new)
-    await message.reply_text(f"✅ Replace rule saved:\n`{old}` ➝ `{new}`", parse_mode="markdown")
+    await message.reply_text(
+        f"✅ Replace rule saved:\n`{old}` ➝ `{new}`", parse_mode="markdown"
+    )
 
 # /clearreplace command
 @Client.on_message(filters.command("clearreplace") & filters.private)
