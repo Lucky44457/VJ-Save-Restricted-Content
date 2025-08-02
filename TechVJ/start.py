@@ -1,24 +1,25 @@
-# Don't Remove Credit Tg - @VJ_Botz
-# Subscribe YouTube Channel For Amazing Bot https://youtube.com/@Tech_VJ
-# Ask Doubt on telegram @KingVJ01
-
 import os
+import json
 import asyncio
-import pyrogram
+import threading
 import time
-from pyrogram import Client, filters, enums
-from pyrogram.errors import FloodWait, UserIsBlocked, InputUserDeactivated, UserAlreadyParticipant, InviteHashExpired, UsernameNotOccupied
-from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, Message
-from config import API_ID, API_HASH, ERROR_MESSAGE
-from database.db import db
-from TechVJ.strings import HELP_TXT
 
-class batch_temp(object):
-    IS_BATCH = {}
+from pyrogram import Client, filters
+from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from pyrogram.errors import UserAlreadyParticipant, InviteHashExpired, UsernameNotOccupied
 
-# =========================
-# 🔁 Caption Replace Feature
-# =========================
+with open('config.json', 'r') as f:
+    DATA = json.load(f)
+
+def getenv(var): return os.environ.get(var) or DATA.get(var, None)
+
+API_ID = int(getenv("ID"))
+API_HASH = getenv("HASH")
+BOT_TOKEN = getenv("TOKEN")
+STRING = getenv("STRING")
+
+bot = Client("mybot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
+acc = Client("myacc", api_id=API_ID, api_hash=API_HASH, session_string=STRING) if STRING else None
 
 REPLACE_WORDS = {}
 
@@ -30,7 +31,7 @@ def apply_replace(user_id, caption):
         return caption.replace(pair[0], pair[1])
     return caption
 
-@Client.on_message(filters.command("replace"))
+@bot.on_message(filters.command("replace"))
 async def set_replace(client, message):
     try:
         _, content = message.text.split(" ", 1)
@@ -40,7 +41,7 @@ async def set_replace(client, message):
     except:
         await message.reply_text("❌ Format wrong. Use:\n`/replace oldword | newword`", parse_mode="markdown")
 
-@Client.on_message(filters.command("stopreplace"))
+@bot.on_message(filters.command("stopreplace"))
 async def stop_replace(client, message):
     user_id = message.from_user.id
     if user_id in REPLACE_WORDS:
@@ -49,12 +50,149 @@ async def stop_replace(client, message):
     else:
         await message.reply("ℹ️ No replace settings were active.")
 
-# (The rest of your code remains unchanged below...)
+@bot.on_message(filters.command("start"))
+async def start_command(client, message):
+    await message.reply(
+        f"👋 Hi {message.from_user.mention}, I am your bot.\n\n"
+        "Use /replace to set replace words:\n"
+        "`/replace oldword | newword`\n\n"
+        "Use /stopreplace to clear replace settings.",
+        reply_markup=InlineKeyboardMarkup(
+            [[InlineKeyboardButton("🌐 Source Code", url="https://github.com/yourrepo")]]
+        )
+    )
 
-# ... All your downstatus, upstatus, progress, start, help, cancel and save commands remain as is ...
+@bot.on_message(filters.text)
+async def handle_text(client, message):
+    if "https://t.me/+" in message.text or "https://t.me/joinchat/" in message.text:
+        if acc is None:
+            await message.reply("**String Session not set!**")
+            return
+        try:
+            await acc.join_chat(message.text)
+            await message.reply("✅ Joined chat.")
+        except UserAlreadyParticipant:
+            await message.reply("✅ Already joined.")
+        except InviteHashExpired:
+            await message.reply("❌ Invalid invite link.")
+        except Exception as e:
+            await message.reply(f"❌ Error: {e}")
+        return
 
-# Replace the line in handle_private:
-# caption = msg.caption
+    elif "https://t.me/" in message.text:
+        datas = message.text.split("/")
+        temp = datas[-1].replace("?single", "").split("-")
+        fromID = int(temp[0].strip())
+        try:
+            toID = int(temp[1].strip())
+        except:
+            toID = fromID
 
-# With:
-caption = apply_replace(message.from_user.id, msg.caption)
+        for msgid in range(fromID, toID + 1):
+            if "https://t.me/c/" in message.text:
+                chatid = int("-100" + datas[4])
+                if acc is None:
+                    await message.reply("**String Session not set!**")
+                    return
+                await handle_private(message, chatid, msgid)
+            else:
+                username = datas[3]
+                try:
+                    msg = await bot.get_messages(username, msgid)
+                    replace_caption = apply_replace(message.from_user.id, msg.caption)
+                    await bot.copy_message(
+                        message.chat.id, msg.chat.id, msg.id,
+                        caption=replace_caption if replace_caption else None,
+                        reply_to_message_id=message.id
+                    )
+                except UsernameNotOccupied:
+                    await message.reply("❌ Username not found.")
+                except Exception as e:
+                    if acc is None:
+                        await message.reply("**String Session not set!**")
+                        return
+                    await handle_private(message, username, msgid)
+            await asyncio.sleep(2)
+
+async def handle_private(message, chatid, msgid):
+    msg = await acc.get_messages(chatid, msgid)
+    msg_type = get_message_type(msg)
+
+    caption = apply_replace(message.from_user.id, msg.caption)
+    caption_entities = msg.caption_entities if not caption or caption == msg.caption else None
+
+    smsg = await bot.send_message(message.chat.id, "__Downloading__", reply_to_message_id=message.id)
+    threading.Thread(target=downstatus, args=(f"{message.id}downstatus.txt", smsg), daemon=True).start()
+    file = await acc.download_media(msg, progress=progress, progress_args=[message, "down"])
+    os.remove(f"{message.id}downstatus.txt")
+    threading.Thread(target=upstatus, args=(f"{message.id}upstatus.txt", smsg), daemon=True).start()
+
+    kwargs = {
+        "caption": caption,
+        "caption_entities": caption_entities,
+        "reply_to_message_id": message.id,
+        "progress": progress,
+        "progress_args": [message, "up"]
+    }
+
+    if msg_type == "Document":
+        await bot.send_document(message.chat.id, file, **kwargs)
+    elif msg_type == "Video":
+        await bot.send_video(message.chat.id, file, **kwargs)
+    elif msg_type == "Photo":
+        await bot.send_photo(message.chat.id, file, **kwargs)
+    elif msg_type == "Audio":
+        await bot.send_audio(message.chat.id, file, **kwargs)
+    elif msg_type == "Voice":
+        await bot.send_voice(message.chat.id, file, **kwargs)
+    elif msg_type == "Animation":
+        await bot.send_animation(message.chat.id, file, reply_to_message_id=message.id)
+    elif msg_type == "Sticker":
+        await bot.send_sticker(message.chat.id, file, reply_to_message_id=message.id)
+
+    os.remove(file)
+    if os.path.exists(f"{message.id}upstatus.txt"): os.remove(f"{message.id}upstatus.txt")
+    await bot.delete_messages(message.chat.id, smsg.id)
+
+def downstatus(statusfile, message):
+    while not os.path.exists(statusfile): time.sleep(3)
+    while os.path.exists(statusfile):
+        with open(statusfile, "r") as f:
+            txt = f.read()
+        try:
+            asyncio.run_coroutine_threadsafe(
+                bot.edit_message_text(message.chat.id, message.id, f"__Downloaded__: **{txt}**"),
+                bot.loop
+            )
+            time.sleep(10)
+        except: time.sleep(5)
+
+def upstatus(statusfile, message):
+    while not os.path.exists(statusfile): time.sleep(3)
+    while os.path.exists(statusfile):
+        with open(statusfile, "r") as f:
+            txt = f.read()
+        try:
+            asyncio.run_coroutine_threadsafe(
+                bot.edit_message_text(message.chat.id, message.id, f"__Uploaded__: **{txt}**"),
+                bot.loop
+            )
+            time.sleep(10)
+        except: time.sleep(5)
+
+def progress(current, total, message, type):
+    with open(f"{message.id}{type}status.txt", "w") as f:
+        f.write(f"{current * 100 / total:.1f}%")
+
+def get_message_type(msg):
+    if msg.document: return "Document"
+    if msg.video: return "Video"
+    if msg.photo: return "Photo"
+    if msg.audio: return "Audio"
+    if msg.voice: return "Voice"
+    if msg.animation: return "Animation"
+    if msg.sticker: return "Sticker"
+    if msg.text: return "Text"
+
+if acc: acc.start()
+bot.run()
