@@ -1,46 +1,33 @@
 import os
-from telethon import TelegramClient, events
-from config import API_ID, API_HASH, BOT_TOKEN
+from telethon import TelegramClient
+from config import API_ID, API_HASH, PHONE_NUMBER
 
-# Make sure sessions folder exists
+# Sessions folder create
 SESSIONS_DIR = os.path.join(os.path.dirname(__file__), "sessions")
 os.makedirs(SESSIONS_DIR, exist_ok=True)
 
-# Function to get or create a user session
-def get_client(phone_number: str):
-    session_path = os.path.join(SESSIONS_DIR, f"{phone_number}.session")
-    return TelegramClient(session_path, API_ID, API_HASH)
+# Session file ka naam phone number ke saath
+session_path = os.path.join(SESSIONS_DIR, f"{PHONE_NUMBER}.session")
 
-# -------- Bot for user login --------
-async def start_user_login():
-    phone = input("Enter your phone number (with country code, e.g. +91xxxx): ").strip()
-    client = get_client(phone)
-    await client.start(phone)
-    print(f"✅ Logged in successfully. Session saved at: sessions/{phone}.session")
-    await client.run_until_disconnected()
+# Telethon client
+client = TelegramClient(session_path, API_ID, API_HASH)
 
-# -------- Bot that forwards from private channels --------
-bot = TelegramClient("bot_session", API_ID, API_HASH).start(bot_token=BOT_TOKEN)
-
-@bot.on(events.NewMessage(pattern="/start"))
-async def start_command(event):
-    await event.respond("Welcome! This bot forwards messages from a private channel. Your session is already saved.")
-
-@bot.on(events.NewMessage(pattern="/forward"))
-async def forward_command(event):
-    # Example forward logic — replace with your own
-    source_chat = -100123456789  # source private channel ID
-    target_chat = event.chat_id  # where to forward
-    async for message in bot.iter_messages(source_chat, limit=10):
-        await bot.send_message(target_chat, message)
-
-if __name__ == "__main__":
-    mode = input("Enter mode (login/bot): ").strip().lower()
-    if mode == "login":
-        import asyncio
-        asyncio.run(start_user_login())
-    elif mode == "bot":
-        print("🤖 Bot is running...")
-        bot.run_until_disconnected()
+async def main():
+    # Agar pehli baar login hai
+    if not os.path.exists(session_path):
+        print("📲 First time login — sending code...")
+        await client.start(phone=PHONE_NUMBER)
+        print(f"✅ Session saved: {session_path}")
     else:
-        print("❌ Invalid mode. Use 'login' or 'bot'.")
+        # Dusri baar se direct login
+        await client.connect()
+        if not await client.is_user_authorized():
+            print("⚠ Session expired, please login again.")
+            await client.start(phone=PHONE_NUMBER)
+            print(f"✅ Session re-saved: {session_path}")
+
+    me = await client.get_me()
+    print(f"✅ Logged in as {me.first_name} ({me.id})")
+
+with client:
+    client.loop.run_until_complete(main())
